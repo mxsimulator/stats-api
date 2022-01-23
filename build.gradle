@@ -1,0 +1,22 @@
+plugins {
+    id 'java'
+}
+
+group = 'com.mxsimulator'
+version = '0.1.0'
+sourceCompatibility = '11'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compileOnly(
+            "org.projectlombok:lombok:1.18.10"
+    )
+    annotationProcessor 'org.projectlombok:lombok:1.18.8'
+}
+
+test {
+    useJUnitPlatform()
+}
