@@ -3,15 +3,20 @@ package com.mxsimulator.saf;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
-import java.util.zip.ZipOutputStream;
 
 public class SafFileParser {
-    public static byte[] parse(byte[] rawBytes) {
+    public static void extract(String sourcePath, String destinationPath) throws IOException {
+        extract(Files.readAllBytes(Path.of(sourcePath)), destinationPath);
+    }
+
+    public static void extract(byte[] rawBytes, String destinationPath) throws IOException {
         int index = 0;
         StringBuilder headerContent = new StringBuilder();
         // Build headers for file size/paths
@@ -40,20 +45,8 @@ public class SafFileParser {
             index += byteCount;
         }
 
-        try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()) {
-            try (ZipOutputStream zipOutputStream = new ZipOutputStream(byteArrayOutputStream)) {
-                for (SafFile safFile : safFileList) {
-                    ZipEntry zipEntry = new ZipEntry(safFile.getPath());
-                    zipOutputStream.putNextEntry(zipEntry);
-                    zipOutputStream.write(safFile.getBytes());
-                    zipOutputStream.closeEntry();
-                }
-            }
-
-            return byteArrayOutputStream.toByteArray();
-        } catch (IOException e) {
-            e.printStackTrace();
-            return null;
+        for (SafFile safFile : safFileList) {
+            Files.write(Path.of(destinationPath + "/" + safFile.getPath()), safFile.getBytes());
         }
     }
 
