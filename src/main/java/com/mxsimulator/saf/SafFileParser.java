@@ -8,8 +8,11 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class SafFileParser {
+    private static final String FILE_SEPARATOR = System.getProperty("os.name").contains("Windows") ? "\\" : "/";
+
     public static void extract(String sourcePath, String destinationPath) throws IOException {
         extract(Files.readAllBytes(Path.of(sourcePath)), destinationPath);
     }
@@ -49,14 +52,24 @@ public class SafFileParser {
     }
 
     public static void create(String sourcePath, String destinationFile) throws IOException {
-        File directory = new File(sourcePath);
         List<SafFile> safFileList = new ArrayList<>();
-        for (File file : directory.listFiles()) {
+        List<String> files = Files.walk(Path.of(sourcePath))
+                .filter(path -> !path.equals(sourcePath))
+                .filter(path -> !path.toFile().isDirectory())
+                .map(path -> path.toString().replace(sourcePath + FILE_SEPARATOR, ""))
+                .collect(Collectors.toList());
+
+        for (String filepath : files) {
+            File file = new File(filepath);
+            String normalizedPath = file.getPath()
+                    .replace(FILE_SEPARATOR, "/")
+                    .replace(sourcePath.replace(FILE_SEPARATOR, "/"), "")
+                    .substring(1);
             byte[] bytes = Files.readAllBytes(Path.of(file.getAbsolutePath()));
             SafFile safFile = SafFile.builder()
                     .byteCount(bytes.length)
                     .bytes(bytes)
-                    .path(file.getPath())
+                    .path(normalizedPath)
                     .build();
             safFileList.add(safFile);
         }
