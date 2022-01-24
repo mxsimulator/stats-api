@@ -1,15 +1,13 @@
 package com.mxsimulator.saf;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 
 public class SafFileParser {
     public static void extract(String sourcePath, String destinationPath) throws IOException {
@@ -50,48 +48,37 @@ public class SafFileParser {
         }
     }
 
-    public static byte[] create(byte[] fileBytes) {
+    public static void create(String sourcePath, String destinationFile) throws IOException {
+        File directory = new File(sourcePath);
         List<SafFile> safFileList = new ArrayList<>();
-        try (ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(fileBytes);
-             ZipInputStream zipInputStream = new ZipInputStream(byteArrayInputStream)) {
-            ZipEntry zipEntry;
+        for (File file : directory.listFiles()) {
+            byte[] bytes = Files.readAllBytes(Path.of(file.getAbsolutePath()));
+            SafFile safFile = SafFile.builder()
+                    .byteCount(bytes.length)
+                    .bytes(bytes)
+                    .path(file.getPath())
+                    .build();
+            safFileList.add(safFile);
+        }
 
-            while ((zipEntry = zipInputStream.getNextEntry()) != null) {
-                ByteArrayOutputStream streamBuilder = new ByteArrayOutputStream();
-                int bytesRead;
-                byte[] tempBuffer = new byte[8192 * 2];
+        // Build saf headers
+        StringBuilder stringBuilder = new StringBuilder();
+        for (SafFile safFile : safFileList) {
+            stringBuilder.append(safFile.getByteCount());
+            stringBuilder.append(" ");
+            stringBuilder.append(safFile.getPath());
+            stringBuilder.append("\n");
+        }
+        stringBuilder.append("-\n");
 
-                while ((bytesRead = zipInputStream.read(tempBuffer)) != -1) {
-                    streamBuilder.write(tempBuffer, 0, bytesRead);
-                }
+        try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+            outputStream.write(stringBuilder.toString().getBytes());
 
-                SafFile safFile = SafFile.builder()
-                        .byteCount((int) zipEntry.getSize())
-                        .bytes(streamBuilder.toByteArray())
-                        .path(zipEntry.getName())
-                        .build();
-                safFileList.add(safFile);
-            }
-            // Build saf headers
-            StringBuilder stringBuilder = new StringBuilder();
             for (SafFile safFile : safFileList) {
-                stringBuilder.append(safFile.getByteCount());
-                stringBuilder.append(" ");
-                stringBuilder.append(safFile.getPath());
-                stringBuilder.append("\n");
+                outputStream.write(safFile.getBytes());
             }
-            stringBuilder.append("-\n");
-            try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
-                outputStream.write(stringBuilder.toString().getBytes());
 
-                for (SafFile safFile : safFileList) {
-                    outputStream.write(safFile.getBytes());
-                }
-
-                return outputStream.toByteArray();
-            }
-        } catch (IOException e) {
-            return null;
+            Files.write(Path.of(destinationFile), outputStream.toByteArray());
         }
     }
 }
