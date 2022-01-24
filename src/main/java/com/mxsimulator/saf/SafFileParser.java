@@ -6,68 +6,58 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.zip.*;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
+import java.util.zip.ZipOutputStream;
 
 public class SafFileParser {
-    public static byte[] parse(byte[] rawBytes, boolean inflate) {
-        Inflater inflater = new Inflater();
-        inflater.setInput(rawBytes);
-        try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream(rawBytes.length)) {
-            if (inflate) {
-                byte[] buffer = new byte[1024];
-                while (!inflater.finished()) {
-                    int count = inflater.inflate(buffer);
-                    outputStream.write(buffer, 0, count);
+    public static byte[] parse(byte[] rawBytes) {
+        int index = 0;
+        StringBuilder headerContent = new StringBuilder();
+        // Build headers for file size/paths
+        while ((char) rawBytes[index] != "-".charAt(0)) {
+            headerContent.append((char) rawBytes[index]);
+            index += 1;
+        }
+        // now building content of files
+        // skip - and \n
+        index += 2;
+        List<SafFile> safFileList = new ArrayList<>();
+        String[] headerLines = headerContent.toString().split("\n");
+        for (String line : headerLines) {
+            // Determine filesize/path
+            String[] pieces = line.replace("\n", "").split(" ");
+            int byteCount = Integer.parseInt(pieces[0]);
+            String path = String.join("", Arrays.asList(Arrays.copyOfRange(pieces, 1, pieces.length)));
+            // Read bytes based on filesize
+            byte[] bytes = Arrays.copyOfRange(rawBytes, index, index + byteCount);
+            SafFile safFile = SafFile.builder()
+                    .byteCount(byteCount)
+                    .bytes(bytes)
+                    .path(path)
+                    .build();
+            safFileList.add(safFile);
+            index += byteCount;
+        }
+
+        try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()) {
+            try (ZipOutputStream zipOutputStream = new ZipOutputStream(byteArrayOutputStream)) {
+                for (SafFile safFile : safFileList) {
+                    ZipEntry zipEntry = new ZipEntry(safFile.getPath());
+                    zipOutputStream.putNextEntry(zipEntry);
+                    zipOutputStream.write(safFile.getBytes());
+                    zipOutputStream.closeEntry();
                 }
             }
-            byte[] fileBytes = inflate ? outputStream.toByteArray() : rawBytes;
 
-            int index = 0;
-            StringBuilder headerContent = new StringBuilder();
-            // Build headers for file size/paths
-            while ((char) fileBytes[index] != "-".charAt(0)) {
-                headerContent.append((char) fileBytes[index]);
-                index += 1;
-            }
-            // now building content of files
-            // skip - and \n
-            index += 2;
-            List<SafFile> safFileList = new ArrayList<>();
-            String[] headerLines = headerContent.toString().split("\n");
-            for (String line : headerLines) {
-                // Determine filesize/path
-                String[] pieces = line.replace("\n", "").split(" ");
-                int byteCount = Integer.parseInt(pieces[0]);
-                String path = String.join("", Arrays.asList(Arrays.copyOfRange(pieces, 1, pieces.length)));
-                // Read bytes based on filesize
-                byte[] bytes = Arrays.copyOfRange(fileBytes, index, index + byteCount);
-                SafFile safFile = SafFile.builder()
-                        .byteCount(byteCount)
-                        .bytes(bytes)
-                        .path(path)
-                        .build();
-                safFileList.add(safFile);
-                index += byteCount;
-            }
-
-            try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()) {
-                try (ZipOutputStream zipOutputStream = new ZipOutputStream(byteArrayOutputStream)) {
-                    for (SafFile safFile : safFileList) {
-                        ZipEntry zipEntry = new ZipEntry(safFile.getPath());
-                        zipOutputStream.putNextEntry(zipEntry);
-                        zipOutputStream.write(safFile.getBytes());
-                        zipOutputStream.closeEntry();
-                    }
-                }
-                return byteArrayOutputStream.toByteArray();
-            }
-        } catch (IOException | DataFormatException e) {
+            return byteArrayOutputStream.toByteArray();
+        } catch (IOException e) {
             e.printStackTrace();
             return null;
         }
     }
 
-    public static byte[] create(byte[] fileBytes, boolean deflate) {
+    public static byte[] create(byte[] fileBytes) {
         List<SafFile> safFileList = new ArrayList<>();
         try (ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(fileBytes);
              ZipInputStream zipInputStream = new ZipInputStream(byteArrayInputStream)) {
@@ -105,21 +95,7 @@ public class SafFileParser {
                     outputStream.write(safFile.getBytes());
                 }
 
-                if (deflate) {
-                    Deflater deflater = new Deflater();
-                    deflater.setInput(outputStream.toByteArray());
-                    try (ByteArrayOutputStream deflateOutputStream = new ByteArrayOutputStream(outputStream.toByteArray().length)) {
-                        deflater.finish();
-                        byte[] buffer = new byte[1024];
-                        while (!deflater.finished()) {
-                            int count = deflater.deflate(buffer);
-                            deflateOutputStream.write(buffer, 0, count);
-                        }
-                        return deflateOutputStream.toByteArray();
-                    }
-                } else {
-                    return outputStream.toByteArray();
-                }
+                return outputStream.toByteArray();
             }
         } catch (IOException e) {
             return null;
