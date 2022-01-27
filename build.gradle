@@ -11,6 +11,9 @@ repositories {
 }
 
 dependencies {
+    implementation(
+            "org.jsoup:jsoup:1.14.3"
+    )
     compileOnly(
             "org.projectlombok:lombok:1.18.10"
     )
